@@ -4,19 +4,23 @@
 <div><textarea id="cmd" style="width:90%;height:80px"></textarea><button id="s">send</button></div>
 <pre id="log" style="white-space:pre-wrap;font-size:11px"></pre>
 <script>
-let ws=null;
+let ws=null, url=null, wantOpen=false;
 const log=(m)=>{const l=document.getElementById('log');l.textContent+=m+"\n---\n";l.scrollTop=l.scrollHeight;};
-document.getElementById('c').onclick=()=>{
-  const url=document.getElementById('u').value;
+function connect(){
   document.getElementById('st').textContent='connecting';
   ws=new WebSocket(url);
   ws.onopen=()=>{document.getElementById('st').textContent='OPEN';log('[open]');};
-  ws.onclose=(e)=>{document.getElementById('st').textContent='CLOSED '+e.code;log('[close '+e.code+']');};
-  ws.onerror=()=>{document.getElementById('st').textContent='ERROR';log('[error]');};
+  ws.onclose=(e)=>{document.getElementById('st').textContent='CLOSED '+e.code;log('[close '+e.code+']');
+    if(wantOpen){setTimeout(connect,500);}};
+  ws.onerror=()=>{log('[error]');};
   ws.onmessage=(ev)=>{log(ev.data.slice(0,20000));};
+}
+document.getElementById('c').onclick=()=>{
+  url=document.getElementById('u').value; wantOpen=true; connect();
 };
 document.getElementById('s').onclick=()=>{
   const m=document.getElementById('cmd').value;
-  if(ws&&ws.readyState===1){ws.send(m);log('>> sent '+m.slice(0,120));}else{log('!! not open');}
+  if(ws&&ws.readyState===1){ws.send(m);log('>> sent '+m.slice(0,120));}
+  else{log('!! not open, reconnecting; resend in a moment');}
 };
 </script></body></html>
