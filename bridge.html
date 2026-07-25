@@ -1,26 +1,38 @@
 <!DOCTYPE html><html><head><meta charset="utf-8"><title>relay-bridge</title></head>
 <body>
 <div><input id="u" style="width:60%" placeholder="ws url"><button id="c">connect</button><span id="st">idle</span></div>
-<div><textarea id="cmd" style="width:90%;height:80px"></textarea><button id="s">send</button></div>
+<div><textarea id="cmd" style="width:90%;height:80px"></textarea><button id="s">run</button></div>
 <pre id="log" style="white-space:pre-wrap;font-size:11px"></pre>
 <script>
-let ws=null, url=null, wantOpen=false;
-const log=(m)=>{const l=document.getElementById('log');l.textContent+=m+"\n---\n";l.scrollTop=l.scrollHeight;};
+let ws=null, url=null, wantOpen=false, pending=null;
+const logEl=()=>document.getElementById('log');
+const log=(m)=>{const l=logEl();l.textContent+=m+"\n---\n";
+  const parts=l.textContent.split("\n---\n"); if(parts.length>40){l.textContent=parts.slice(-40).join("\n---\n");}
+  l.scrollTop=l.scrollHeight; window.scrollTo(0,document.body.scrollHeight);};
 function connect(){
   document.getElementById('st').textContent='connecting';
-  ws=new WebSocket(url);
-  ws.onopen=()=>{document.getElementById('st').textContent='OPEN';log('[open]');};
-  ws.onclose=(e)=>{document.getElementById('st').textContent='CLOSED '+e.code;log('[close '+e.code+']');
-    if(wantOpen){setTimeout(connect,500);}};
-  ws.onerror=()=>{log('[error]');};
-  ws.onmessage=(ev)=>{log(ev.data.slice(0,20000));};
+  try{ws=new WebSocket(url);}catch(e){log('[wserr '+e+']');setTimeout(connect,800);return;}
+  ws.onopen=()=>{document.getElementById('st').textContent='OPEN';
+    if(pending){ws.send(pending.msg);log('>> sent '+pending.msg.slice(0,120));}};
+  ws.onclose=(e)=>{document.getElementById('st').textContent='CLOSED '+e.code;
+    if(wantOpen){setTimeout(connect,600);}};
+  ws.onerror=()=>{};
+  ws.onmessage=(ev)=>{
+    let m=ev.data;
+    try{const j=JSON.parse(m);
+      if(j.type==='agent.result'&&pending&&j.requestId===pending.rid){pending=null;}
+      if(j.type==='peer'){return;}
+    }catch(e){}
+    log(m.slice(0,30000));};
 }
 document.getElementById('c').onclick=()=>{
   url=document.getElementById('u').value; wantOpen=true; connect();
 };
 document.getElementById('s').onclick=()=>{
   const m=document.getElementById('cmd').value;
+  let rid=null; try{rid=JSON.parse(m).requestId;}catch(e){}
+  pending={rid:rid,msg:m};
   if(ws&&ws.readyState===1){ws.send(m);log('>> sent '+m.slice(0,120));}
-  else{log('!! not open, reconnecting; resend in a moment');}
+  else{connect();}
 };
 </script></body></html>
